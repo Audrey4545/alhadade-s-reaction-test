@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import GameHeader from '@/components/GameHeader';
 import GameResult from '@/components/GameResult';
 import GameButton from '@/components/GameButton';
@@ -12,10 +12,13 @@ const COLORS = [
   { id: 1, name: 'vert', activeClass: 'bg-success box-glow-success', inactiveClass: 'bg-success/30' },
   { id: 2, name: 'rouge', activeClass: 'bg-street-red box-glow-danger', inactiveClass: 'bg-street-red/30' },
   { id: 3, name: 'bleu', activeClass: 'bg-blue-500', inactiveClass: 'bg-blue-500/30' },
+  { id: 4, name: 'jaune', activeClass: 'bg-yellow-500', inactiveClass: 'bg-yellow-500/30' },
+  { id: 5, name: 'cyan', activeClass: 'bg-cyan-500', inactiveClass: 'bg-cyan-500/30' },
 ];
 
-const FLASH_DURATION = 500;
-const PAUSE_DURATION = 200;
+const getFlashDuration = (level: number) => Math.max(200, 400 - level * 30);
+const getPauseDuration = (level: number) => Math.max(100, 200 - level * 20);
+const getStartingLength = () => 4; // Start with 4 colors instead of 3
 
 const SequenceFlash = () => {
   const [gameState, setGameState] = useState<GameState>('intro');
@@ -24,39 +27,49 @@ const SequenceFlash = () => {
   const [activeColor, setActiveColor] = useState<number | null>(null);
   const [level, setLevel] = useState(1);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isCancelledRef = useRef(false);
   const { saveScore } = useLocalScore();
 
   const generateSequence = useCallback((length: number) => {
     const newSequence: number[] = [];
     for (let i = 0; i < length; i++) {
-      newSequence.push(Math.floor(Math.random() * 4));
+      newSequence.push(Math.floor(Math.random() * COLORS.length));
     }
     return newSequence;
   }, []);
 
-  const playSequence = useCallback(async (seq: number[]) => {
+  const playSequence = useCallback(async (seq: number[], currentLevel: number) => {
     setGameState('showing');
     setActiveColor(null);
+    isCancelledRef.current = false;
+
+    const flashDuration = getFlashDuration(currentLevel);
+    const pauseDuration = getPauseDuration(currentLevel);
     
     for (let i = 0; i < seq.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+      if (isCancelledRef.current) return;
+      await new Promise(resolve => setTimeout(resolve, pauseDuration));
+      if (isCancelledRef.current) return;
       setActiveColor(seq[i]);
-      await new Promise(resolve => setTimeout(resolve, FLASH_DURATION));
+      await new Promise(resolve => setTimeout(resolve, flashDuration));
+      if (isCancelledRef.current) return;
       setActiveColor(null);
     }
     
-    await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+    if (isCancelledRef.current) return;
+    await new Promise(resolve => setTimeout(resolve, pauseDuration));
+    if (isCancelledRef.current) return;
     setGameState('input');
     setUserInput([]);
   }, []);
 
   const startGame = useCallback(() => {
-    const newSequence = generateSequence(3);
+    const startLength = getStartingLength();
+    const newSequence = generateSequence(startLength);
     setSequence(newSequence);
     setLevel(1);
     setIsCorrect(null);
-    playSequence(newSequence);
+    playSequence(newSequence, 1);
   }, [generateSequence, playSequence]);
 
   const handleColorClick = useCallback((colorId: number) => {
@@ -66,13 +79,13 @@ const SequenceFlash = () => {
     setUserInput(newInput);
     setActiveColor(colorId);
     
-    setTimeout(() => setActiveColor(null), 150);
+    setTimeout(() => setActiveColor(null), 100);
 
     // Check if wrong
     if (newInput[newInput.length - 1] !== sequence[newInput.length - 1]) {
       setIsCorrect(false);
       setGameState('feedback');
-      const finalScore = Math.max(0, (level - 1) * 20);
+      const finalScore = Math.max(0, (level - 1) * 15 + (sequence.length - getStartingLength()) * 5);
       saveScore('sequence', finalScore);
       setTimeout(() => setGameState('result'), 1000);
       return;
@@ -84,20 +97,23 @@ const SequenceFlash = () => {
       setGameState('feedback');
       
       setTimeout(() => {
-        // Next level - add one more to sequence
-        const nextSequence = [...sequence, Math.floor(Math.random() * 4)];
+        // Next level - add 2 more colors every level for more challenge
+        const addCount = level >= 3 ? 2 : 1;
+        const nextSequence = [...sequence];
+        for (let i = 0; i < addCount; i++) {
+          nextSequence.push(Math.floor(Math.random() * COLORS.length));
+        }
         setSequence(nextSequence);
-        setLevel(l => l + 1);
+        const nextLevel = level + 1;
+        setLevel(nextLevel);
         setIsCorrect(null);
-        playSequence(nextSequence);
-      }, 1000);
+        playSequence(nextSequence, nextLevel);
+      }, 800);
     }
   }, [gameState, userInput, sequence, level, playSequence, saveScore]);
 
   const resetGame = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    isCancelledRef.current = true;
     setGameState('intro');
     setSequence([]);
     setUserInput([]);
@@ -105,16 +121,8 @@ const SequenceFlash = () => {
     setIsCorrect(null);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
   if (gameState === 'result') {
-    const finalScore = Math.max(0, (level - 1) * 20);
+    const finalScore = Math.max(0, (level - 1) * 15 + (sequence.length - getStartingLength()) * 5);
     return (
       <GameResult
         gameType="sequence"
@@ -139,10 +147,11 @@ const SequenceFlash = () => {
             <p className="text-foreground mb-4">
               Puis reproduis-la dans le même ordre.
             </p>
-            <p className="text-sm text-muted-foreground mb-8">
-              Ça commence facile... puis ça accélère. 
-              <br />Combien de niveaux tu tiens, Alhadade ?
-            </p>
+            <div className="text-sm text-street-red mb-8 p-3 bg-street-red/10 rounded-lg">
+              <p className="font-bold mb-1">⚡ MODE HARDCORE</p>
+              <p>6 couleurs • Démarre à 4 • Accélère vite</p>
+              <p className="mt-1">T'as la mémoire, Alhadade ?</p>
+            </div>
             <GameButton onClick={startGame} size="lg">
               Let's go
             </GameButton>
@@ -185,16 +194,16 @@ const SequenceFlash = () => {
         )}
       </div>
       
-      {/* Color grid */}
+      {/* Color grid - 6 colors in 2x3 */}
       <div className="flex-1 p-4 flex items-center justify-center">
-        <div className="grid grid-cols-2 gap-4 w-full max-w-xs aspect-square">
+        <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
           {COLORS.map((color) => (
             <button
               key={color.id}
               onClick={() => handleColorClick(color.id)}
               disabled={gameState !== 'input'}
               className={cn(
-                'rounded-xl transition-all duration-150 active:scale-95',
+                'aspect-square rounded-xl transition-all duration-100 active:scale-95',
                 activeColor === color.id ? color.activeClass : color.inactiveClass,
                 gameState === 'input' && 'cursor-pointer hover:opacity-80',
                 gameState !== 'input' && 'cursor-default'

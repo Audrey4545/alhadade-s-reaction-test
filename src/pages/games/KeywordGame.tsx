@@ -1,16 +1,17 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import GameHeader from '@/components/GameHeader';
 import GameResult from '@/components/GameResult';
 import GameButton from '@/components/GameButton';
 import { useLocalScore } from '@/hooks/useLocalScore';
 import { cn } from '@/lib/utils';
 
-type GameState = 'intro' | 'playing' | 'result';
+type GameState = 'intro' | 'playing' | 'feedback' | 'result';
 
-const WORDS = ['FLOW', 'STREET', 'BITUME', 'SKATE', 'DAMSO', 'TRAP', 'HOOD', 'BOSS', 'CASH', 'DRIP'];
+const TRAP_WORDS = ['ALHADAD', 'ALHADABE', 'ALHADADA', 'ALHADADÉ', 'ALHADABE', 'ALADADE', 'ALHADAD3'];
+const DISTRACTION_WORDS = ['FLOW', 'STREET', 'BITUME', 'SKATE', 'DAMSO', 'TRAP', 'HOOD', 'BOSS', 'CASH', 'DRIP', 'VIDA LOCA', 'IPSÉITÉ', 'FARINIGHT'];
 const TARGET_WORD = 'ALHADADE';
-const ROUNDS = 10;
-const WORD_DISPLAY_TIME = 800;
+const ROUNDS = 15;
+const WORD_DISPLAY_TIME = 600; // Faster - harder
 
 const KeywordGame = () => {
   const [gameState, setGameState] = useState<GameState>('intro');
@@ -19,8 +20,21 @@ const KeywordGame = () => {
   const [score, setScore] = useState(0);
   const [isTargetWord, setIsTargetWord] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [hasClicked, setHasClicked] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nextWordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { saveScore } = useLocalScore();
+
+  const clearTimers = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (nextWordTimeoutRef.current) {
+      clearTimeout(nextWordTimeoutRef.current);
+      nextWordTimeoutRef.current = null;
+    }
+  }, []);
 
   const showNextWord = useCallback(() => {
     if (round >= ROUNDS) {
@@ -30,31 +44,48 @@ const KeywordGame = () => {
       return;
     }
 
-    // 30% chance to show target word
-    const showTarget = Math.random() < 0.3;
-    const word = showTarget 
-      ? TARGET_WORD 
-      : WORDS[Math.floor(Math.random() * WORDS.length)];
+    // 25% target, 25% trap, 50% distraction
+    const rand = Math.random();
+    let word: string;
+    let isTarget: boolean;
+    
+    if (rand < 0.25) {
+      word = TARGET_WORD;
+      isTarget = true;
+    } else if (rand < 0.5) {
+      word = TRAP_WORDS[Math.floor(Math.random() * TRAP_WORDS.length)];
+      isTarget = false;
+    } else {
+      word = DISTRACTION_WORDS[Math.floor(Math.random() * DISTRACTION_WORDS.length)];
+      isTarget = false;
+    }
     
     setCurrentWord(word);
-    setIsTargetWord(showTarget);
+    setIsTargetWord(isTarget);
     setFeedback(null);
+    setHasClicked(false);
+    setGameState('playing');
 
+    // Time's up - word disappears
     timeoutRef.current = setTimeout(() => {
-      // Time's up for this word
-      if (showTarget) {
-        // Missed the target word
+      if (isTarget) {
+        // Missed target word
         setFeedback('wrong');
+        setGameState('feedback');
       }
-      setRound(r => r + 1);
-      setTimeout(() => showNextWord(), 300);
+      // Move to next round
+      nextWordTimeoutRef.current = setTimeout(() => {
+        setRound(r => r + 1);
+        showNextWord();
+      }, isTarget ? 500 : 100);
     }, WORD_DISPLAY_TIME);
   }, [round, score, saveScore]);
 
   const handleTap = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    if (gameState !== 'playing' || hasClicked) return;
+    
+    setHasClicked(true);
+    clearTimers();
 
     if (isTargetWord) {
       setScore(s => s + 1);
@@ -63,33 +94,27 @@ const KeywordGame = () => {
       setFeedback('wrong');
     }
 
-    setRound(r => r + 1);
-    setTimeout(() => showNextWord(), 400);
-  }, [isTargetWord, showNextWord]);
+    setGameState('feedback');
+    nextWordTimeoutRef.current = setTimeout(() => {
+      setRound(r => r + 1);
+      showNextWord();
+    }, 500);
+  }, [gameState, hasClicked, isTargetWord, clearTimers, showNextWord]);
 
-  const startGame = () => {
-    setGameState('playing');
+  const startGame = useCallback(() => {
     setRound(0);
     setScore(0);
+    setFeedback(null);
     showNextWord();
-  };
+  }, [showNextWord]);
 
   const resetGame = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    clearTimers();
     setGameState('intro');
     setRound(0);
     setScore(0);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+    setFeedback(null);
+  }, [clearTimers]);
 
   if (gameState === 'result') {
     const finalScore = Math.round((score / ROUNDS) * 100);
@@ -112,16 +137,21 @@ const KeywordGame = () => {
               MOT-CLÉ
             </p>
             <p className="text-muted-foreground mb-4">
-              Des mots vont défiler rapidement.
+              Des mots vont défiler très rapidement.
             </p>
             <p className="text-foreground mb-4">
               Appuie <span className="text-accent font-bold">UNIQUEMENT</span> quand tu vois :
             </p>
-            <p className="font-street text-4xl text-primary text-glow mb-8">
+            <p className="font-street text-4xl text-primary text-glow mb-4">
               {TARGET_WORD}
             </p>
-            <p className="text-sm text-muted-foreground mb-8">
-              Attention aux pièges ! {ROUNDS} mots au total.
+            <div className="text-sm text-street-red mb-8 p-3 bg-street-red/10 rounded-lg">
+              <p className="font-bold mb-1">⚠️ PIÈGES !</p>
+              <p>Des mots ressemblent beaucoup... ALHADAD, ALHADABE...</p>
+              <p className="mt-1">Ne te fais pas avoir !</p>
+            </div>
+            <p className="text-xs text-muted-foreground mb-8">
+              {ROUNDS} mots au total.
             </p>
             <GameButton onClick={startGame} size="lg">
               C'est parti !
@@ -152,6 +182,7 @@ const KeywordGame = () => {
       
       <button
         onClick={handleTap}
+        disabled={gameState !== 'playing'}
         className={cn(
           'flex-1 flex flex-col items-center justify-center p-6 transition-colors duration-100',
           feedback === 'correct' && 'bg-success/20',

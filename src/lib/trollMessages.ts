@@ -1,8 +1,8 @@
 // Messages troll street pour Alhadade
 
 export const getTrollMessage = (score: number, gameType: string): string => {
-  // Pour les jeux de temps (plus bas = mieux)
-  if (gameType === 'reflex' || gameType === 'color') {
+  // Pour les jeux de temps (plus bas = mieux) - seulement reflex maintenant
+  if (gameType === 'reflex') {
     if (score < 200) {
       return getRandomMessage(excellentMessages);
     } else if (score < 300) {
@@ -77,15 +77,15 @@ const terribleMessages = [
 
 export const gameDescriptions: Record<string, string> = {
   reflex: "Teste tes réflexes bruts. Clique dès que tu vois le signal.",
-  color: "L'écran change de couleur. Réagis au bon moment.",
-  keyword: "Des mots défilent. Tape sur le bon, esquive les pièges.",
+  color: "ROUGE écrit en bleu ? Clique sur la COULEUR, pas le mot !",
+  keyword: "Des mots défilent vite. Trouve ALHADADE, évite les pièges.",
   dontclick: "Parfois faut cliquer, parfois surtout pas. T'es assez malin ?",
-  sequence: "Mémorise la séquence et reproduis-la. Simple... ou pas.",
+  sequence: "6 couleurs, séquence longue, ça accélère. Bonne chance.",
 };
 
 export const gameNames: Record<string, string> = {
   reflex: "Reflex Timer",
-  color: "Flash Couleur",
+  color: "Bonne Couleur",
   keyword: "Mot-Clé",
   dontclick: "Clique Pas",
   sequence: "Séquence Flash",

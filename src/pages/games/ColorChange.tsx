@@ -1,83 +1,165 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import GameHeader from '@/components/GameHeader';
 import GameResult from '@/components/GameResult';
+import GameButton from '@/components/GameButton';
 import { useLocalScore } from '@/hooks/useLocalScore';
 import { cn } from '@/lib/utils';
 
-type GameState = 'waiting' | 'ready' | 'go' | 'tooEarly' | 'result';
+type GameState = 'intro' | 'playing' | 'feedback' | 'result';
 
 const COLORS = [
-  { name: 'violet', class: 'bg-primary' },
-  { name: 'vert', class: 'bg-success' },
-  { name: 'rouge', class: 'bg-street-red' },
-  { name: 'bleu', class: 'bg-blue-600' },
+  { id: 0, name: 'VIOLET', textClass: 'text-primary', bgClass: 'bg-primary' },
+  { id: 1, name: 'VERT', textClass: 'text-success', bgClass: 'bg-success' },
+  { id: 2, name: 'ROUGE', textClass: 'text-street-red', bgClass: 'bg-street-red' },
+  { id: 3, name: 'BLEU', textClass: 'text-blue-500', bgClass: 'bg-blue-500' },
 ];
 
+const ROUNDS = 15;
+const TIME_PER_ROUND = 2500; // 2.5 seconds to respond
+
 const ColorChange = () => {
-  const [gameState, setGameState] = useState<GameState>('waiting');
-  const [reactionTime, setReactionTime] = useState<number>(0);
-  const [targetColor, setTargetColor] = useState(COLORS[0]);
-  const startTimeRef = useRef<number>(0);
+  const [gameState, setGameState] = useState<GameState>('intro');
+  const [displayedWord, setDisplayedWord] = useState(COLORS[0]);
+  const [displayColor, setDisplayColor] = useState(COLORS[0]);
+  const [round, setRound] = useState(0);
+  const [score, setScore] = useState(0);
+  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [timeLeft, setTimeLeft] = useState(TIME_PER_ROUND);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { saveScore } = useLocalScore();
 
-  const startGame = useCallback(() => {
-    // Pick random target color
-    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-    setTargetColor(color);
-    setGameState('ready');
-    
-    // Random delay between 2-5 seconds
-    const delay = 2000 + Math.random() * 3000;
-    
-    timeoutRef.current = setTimeout(() => {
-      setGameState('go');
-      startTimeRef.current = Date.now();
-    }, delay);
-  }, []);
-
-  const handleClick = useCallback(() => {
-    if (gameState === 'waiting') {
-      startGame();
-    } else if (gameState === 'ready') {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      setGameState('tooEarly');
-    } else if (gameState === 'go') {
-      const time = Date.now() - startTimeRef.current;
-      setReactionTime(time);
-      saveScore('color', time);
-      setGameState('result');
-    } else if (gameState === 'tooEarly') {
-      setGameState('waiting');
-    }
-  }, [gameState, startGame, saveScore]);
-
-  const resetGame = useCallback(() => {
+  const clearTimers = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
-    setGameState('waiting');
-    setReactionTime(0);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+  const showNextRound = useCallback(() => {
+    if (round >= ROUNDS) {
+      const finalScore = Math.round((score / ROUNDS) * 100);
+      saveScore('color', finalScore);
+      setGameState('result');
+      return;
+    }
+
+    // Pick random word and random display color (different from word meaning)
+    const wordIndex = Math.floor(Math.random() * COLORS.length);
+    let colorIndex = Math.floor(Math.random() * COLORS.length);
+    // 70% chance color is different from word
+    if (Math.random() < 0.7) {
+      while (colorIndex === wordIndex) {
+        colorIndex = Math.floor(Math.random() * COLORS.length);
       }
-    };
-  }, []);
+    }
+
+    setDisplayedWord(COLORS[wordIndex]);
+    setDisplayColor(COLORS[colorIndex]);
+    setFeedback(null);
+    setTimeLeft(TIME_PER_ROUND);
+    setGameState('playing');
+
+    // Timer countdown
+    const startTime = Date.now();
+    intervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      setTimeLeft(Math.max(0, TIME_PER_ROUND - elapsed));
+    }, 50);
+
+    // Timeout - no response
+    timeoutRef.current = setTimeout(() => {
+      clearTimers();
+      setFeedback('wrong');
+      setGameState('feedback');
+      setTimeout(() => {
+        setRound(r => r + 1);
+        showNextRound();
+      }, 600);
+    }, TIME_PER_ROUND);
+  }, [round, score, saveScore, clearTimers]);
+
+  const handleColorClick = useCallback((colorId: number) => {
+    if (gameState !== 'playing') return;
+
+    clearTimers();
+
+    // Player must click the COLOR displayed, not the word meaning
+    if (colorId === displayColor.id) {
+      setScore(s => s + 1);
+      setFeedback('correct');
+    } else {
+      setFeedback('wrong');
+    }
+
+    setGameState('feedback');
+    setTimeout(() => {
+      setRound(r => r + 1);
+      showNextRound();
+    }, 600);
+  }, [gameState, displayColor, clearTimers, showNextRound]);
+
+  const startGame = useCallback(() => {
+    setRound(0);
+    setScore(0);
+    setFeedback(null);
+    showNextRound();
+  }, [showNextRound]);
+
+  const resetGame = useCallback(() => {
+    clearTimers();
+    setGameState('intro');
+    setRound(0);
+    setScore(0);
+    setFeedback(null);
+  }, [clearTimers]);
 
   if (gameState === 'result') {
+    const finalScore = Math.round((score / ROUNDS) * 100);
     return (
       <GameResult
         gameType="color"
-        score={reactionTime}
-        isTimeBased={true}
+        score={finalScore}
         onRetry={resetGame}
       />
+    );
+  }
+
+  if (gameState === 'intro') {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <GameHeader gameType="color" />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="animate-fade-in max-w-sm">
+            <p className="font-street text-3xl text-foreground mb-6">
+              BONNE COULEUR
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Un mot de couleur va s'afficher.
+            </p>
+            <div className="mb-6 p-4 bg-card rounded-xl border border-border">
+              <p className="text-foreground mb-2">Exemple :</p>
+              <p className="font-street text-4xl text-blue-500 mb-2">ROUGE</p>
+              <p className="text-sm text-muted-foreground">
+                Le mot dit "ROUGE" mais il est écrit en <span className="text-blue-500 font-bold">BLEU</span>
+              </p>
+            </div>
+            <p className="text-accent font-bold mb-4">
+              Appuie sur la COULEUR d'affichage !
+            </p>
+            <p className="text-sm text-muted-foreground mb-8">
+              {ROUNDS} rounds. Pas le droit à l'erreur Alhadade.
+            </p>
+            <GameButton onClick={startGame} size="lg">
+              C'est parti !
+            </GameButton>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -85,66 +167,61 @@ const ColorChange = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <GameHeader gameType="color" />
       
-      <button
-        onClick={handleClick}
-        className={cn(
-          'flex-1 flex flex-col items-center justify-center p-6 transition-all duration-100',
-          gameState === 'waiting' && 'bg-secondary',
-          gameState === 'ready' && 'bg-muted',
-          gameState === 'go' && targetColor.class,
-          gameState === 'tooEarly' && 'bg-street-red animate-shake'
-        )}
-      >
-        {gameState === 'waiting' && (
-          <div className="text-center animate-fade-in">
-            <p className="font-street text-3xl text-foreground mb-4">
-              FLASH COULEUR
-            </p>
-            <p className="text-muted-foreground">
-              L'écran va changer de couleur.
-            </p>
-            <p className="text-muted-foreground mt-2">
-              Appuie dès que ça change !
-            </p>
-            <p className="text-sm text-accent mt-6">
-              Appuie pour commencer
-            </p>
+      {/* Progress */}
+      <div className="p-4">
+        <div className="flex justify-between text-sm text-muted-foreground mb-2">
+          <span>Round {round + 1}/{ROUNDS}</span>
+          <span className="text-accent">Score: {score}</span>
+        </div>
+        <div className="h-1 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-100"
+            style={{ width: `${(timeLeft / TIME_PER_ROUND) * 100}%` }}
+          />
+        </div>
+      </div>
+      
+      {/* Word display */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        {(gameState === 'playing' || gameState === 'feedback') && (
+          <div className="text-center mb-8">
+            {feedback ? (
+              <p className={cn(
+                'font-street text-6xl',
+                feedback === 'correct' ? 'text-success animate-bounce-in' : 'text-street-red animate-shake'
+              )}>
+                {feedback === 'correct' ? '✓' : '✗'}
+              </p>
+            ) : (
+              <p className={cn('font-street text-6xl md:text-7xl animate-bounce-in', displayColor.textClass)}>
+                {displayedWord.name}
+              </p>
+            )}
           </div>
         )}
 
-        {gameState === 'ready' && (
-          <div className="text-center animate-fade-in">
-            <p className="font-street text-4xl text-foreground mb-4">
-              FIXE L'ÉCRAN...
-            </p>
-            <p className="text-muted-foreground">
-              La couleur va changer
-            </p>
-          </div>
-        )}
+        {/* Color buttons */}
+        <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
+          {COLORS.map((color) => (
+            <button
+              key={color.id}
+              onClick={() => handleColorClick(color.id)}
+              disabled={gameState !== 'playing'}
+              className={cn(
+                'h-20 rounded-xl transition-all duration-150 active:scale-95 font-street text-lg text-foreground',
+                color.bgClass,
+                gameState === 'playing' ? 'cursor-pointer hover:opacity-80' : 'opacity-50 cursor-default'
+              )}
+            >
+              {color.name}
+            </button>
+          ))}
+        </div>
 
-        {gameState === 'go' && (
-          <div className="text-center animate-bounce-in">
-            <p className="font-street text-6xl text-foreground text-glow drop-shadow-lg">
-              MAINTENANT !
-            </p>
-          </div>
-        )}
-
-        {gameState === 'tooEarly' && (
-          <div className="text-center animate-fade-in">
-            <p className="font-street text-3xl text-foreground mb-4">
-              TROP TÔT !
-            </p>
-            <p className="text-foreground/80">
-              Patience Alhadade...
-            </p>
-            <p className="text-sm text-foreground/60 mt-4">
-              Appuie pour réessayer
-            </p>
-          </div>
-        )}
-      </button>
+        <p className="text-sm text-muted-foreground mt-6">
+          Appuie sur la <span className="text-accent font-bold">COULEUR</span> du texte !
+        </p>
+      </div>
     </div>
   );
 };

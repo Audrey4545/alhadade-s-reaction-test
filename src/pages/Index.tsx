@@ -69,7 +69,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="p-4 text-center">
         <p className="text-xs text-muted-foreground">
-          Fait pour troller Alhadade avec amour 💜
+          Fait pour troller Alhadade 💜
         </p>
       </footer>
     </div>

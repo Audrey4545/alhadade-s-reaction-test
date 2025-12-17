@@ -8,10 +8,10 @@ import { cn } from '@/lib/utils';
 type GameState = 'intro' | 'playing' | 'feedback' | 'result';
 
 const COLORS = [
-  { id: 0, name: 'VIOLET', textClass: 'text-primary', bgClass: 'bg-primary' },
-  { id: 1, name: 'VERT', textClass: 'text-success', bgClass: 'bg-success' },
-  { id: 2, name: 'ROUGE', textClass: 'text-street-red', bgClass: 'bg-street-red' },
-  { id: 3, name: 'BLEU', textClass: 'text-blue-500', bgClass: 'bg-blue-500' },
+  { id: 0, name: 'VIOLET', textClass: 'text-primary' },
+  { id: 1, name: 'VERT', textClass: 'text-success' },
+  { id: 2, name: 'ROUGE', textClass: 'text-street-red' },
+  { id: 3, name: 'BLEU', textClass: 'text-blue-500' },
 ];
 
 const ROUNDS = 15;
@@ -27,6 +27,8 @@ const ColorChange = () => {
   const [timeLeft, setTimeLeft] = useState(TIME_PER_ROUND);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const roundRef = useRef(0);
+  const scoreRef = useRef(0);
   const { saveScore } = useLocalScore();
 
   const clearTimers = useCallback(() => {
@@ -41,8 +43,8 @@ const ColorChange = () => {
   }, []);
 
   const showNextRound = useCallback(() => {
-    if (round >= ROUNDS) {
-      const finalScore = Math.round((score / ROUNDS) * 100);
+    if (roundRef.current >= ROUNDS) {
+      const finalScore = Math.round((scoreRef.current / ROUNDS) * 100);
       saveScore('color', finalScore);
       setGameState('result');
       return;
@@ -62,6 +64,7 @@ const ColorChange = () => {
     setDisplayColor(COLORS[colorIndex]);
     setFeedback(null);
     setTimeLeft(TIME_PER_ROUND);
+    setRound(roundRef.current);
     setGameState('playing');
 
     // Timer countdown
@@ -77,11 +80,11 @@ const ColorChange = () => {
       setFeedback('wrong');
       setGameState('feedback');
       setTimeout(() => {
-        setRound(r => r + 1);
+        roundRef.current += 1;
         showNextRound();
       }, 600);
     }, TIME_PER_ROUND);
-  }, [round, score, saveScore, clearTimers]);
+  }, [saveScore, clearTimers]);
 
   const handleColorClick = useCallback((colorId: number) => {
     if (gameState !== 'playing') return;
@@ -90,7 +93,8 @@ const ColorChange = () => {
 
     // Player must click the COLOR displayed, not the word meaning
     if (colorId === displayColor.id) {
-      setScore(s => s + 1);
+      scoreRef.current += 1;
+      setScore(scoreRef.current);
       setFeedback('correct');
     } else {
       setFeedback('wrong');
@@ -98,12 +102,14 @@ const ColorChange = () => {
 
     setGameState('feedback');
     setTimeout(() => {
-      setRound(r => r + 1);
+      roundRef.current += 1;
       showNextRound();
     }, 600);
   }, [gameState, displayColor, clearTimers, showNextRound]);
 
   const startGame = useCallback(() => {
+    roundRef.current = 0;
+    scoreRef.current = 0;
     setRound(0);
     setScore(0);
     setFeedback(null);
@@ -208,9 +214,9 @@ const ColorChange = () => {
               onClick={() => handleColorClick(color.id)}
               disabled={gameState !== 'playing'}
               className={cn(
-                'h-20 rounded-xl transition-all duration-150 active:scale-95 font-street text-lg text-foreground',
-                color.bgClass,
-                gameState === 'playing' ? 'cursor-pointer hover:opacity-80' : 'opacity-50 cursor-default'
+                'h-20 rounded-xl transition-all duration-150 active:scale-95 font-street text-lg border-2 border-border bg-card',
+                color.textClass,
+                gameState === 'playing' ? 'cursor-pointer hover:bg-muted' : 'opacity-50 cursor-default'
               )}
             >
               {color.name}

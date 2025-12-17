@@ -214,8 +214,7 @@ const ColorChange = () => {
               onClick={() => handleColorClick(color.id)}
               disabled={gameState !== 'playing'}
               className={cn(
-                'h-20 rounded-xl transition-all duration-150 active:scale-95 font-street text-lg border-2 border-border bg-card',
-                color.textClass,
+                'h-20 rounded-xl transition-all duration-150 active:scale-95 font-street text-lg border-2 border-border bg-card text-foreground',
                 gameState === 'playing' ? 'cursor-pointer hover:bg-muted' : 'opacity-50 cursor-default'
               )}
             >

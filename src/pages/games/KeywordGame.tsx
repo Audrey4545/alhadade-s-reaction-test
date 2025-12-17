@@ -23,6 +23,8 @@ const KeywordGame = () => {
   const [hasClicked, setHasClicked] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const nextWordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const roundRef = useRef(0);
+  const scoreRef = useRef(0);
   const { saveScore } = useLocalScore();
 
   const clearTimers = useCallback(() => {
@@ -37,8 +39,8 @@ const KeywordGame = () => {
   }, []);
 
   const showNextWord = useCallback(() => {
-    if (round >= ROUNDS) {
-      const finalScore = Math.round((score / ROUNDS) * 100);
+    if (roundRef.current >= ROUNDS) {
+      const finalScore = Math.round((scoreRef.current / ROUNDS) * 100);
       saveScore('keyword', finalScore);
       setGameState('result');
       return;
@@ -75,11 +77,12 @@ const KeywordGame = () => {
       }
       // Move to next round
       nextWordTimeoutRef.current = setTimeout(() => {
-        setRound(r => r + 1);
+        roundRef.current += 1;
+        setRound(roundRef.current);
         showNextWord();
       }, isTarget ? 500 : 100);
     }, WORD_DISPLAY_TIME);
-  }, [round, score, saveScore]);
+  }, [saveScore]);
 
   const handleTap = useCallback(() => {
     if (gameState !== 'playing' || hasClicked) return;
@@ -88,7 +91,8 @@ const KeywordGame = () => {
     clearTimers();
 
     if (isTargetWord) {
-      setScore(s => s + 1);
+      scoreRef.current += 1;
+      setScore(scoreRef.current);
       setFeedback('correct');
     } else {
       setFeedback('wrong');
@@ -96,12 +100,15 @@ const KeywordGame = () => {
 
     setGameState('feedback');
     nextWordTimeoutRef.current = setTimeout(() => {
-      setRound(r => r + 1);
+      roundRef.current += 1;
+      setRound(roundRef.current);
       showNextWord();
     }, 500);
   }, [gameState, hasClicked, isTargetWord, clearTimers, showNextWord]);
 
   const startGame = useCallback(() => {
+    roundRef.current = 0;
+    scoreRef.current = 0;
     setRound(0);
     setScore(0);
     setFeedback(null);
@@ -191,8 +198,7 @@ const KeywordGame = () => {
       >
         <p 
           className={cn(
-            'font-street text-5xl md:text-6xl transition-all duration-100',
-            isTargetWord ? 'text-primary text-glow' : 'text-foreground',
+            'font-street text-5xl md:text-6xl transition-all duration-100 text-foreground',
             feedback === 'correct' && 'text-success animate-bounce-in',
             feedback === 'wrong' && 'text-street-red animate-shake'
           )}

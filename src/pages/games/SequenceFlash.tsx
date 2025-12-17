@@ -97,12 +97,9 @@ const SequenceFlash = () => {
       setGameState('feedback');
       
       setTimeout(() => {
-        // Next level - add 2 more colors every level for more challenge
-        const addCount = level >= 3 ? 2 : 1;
-        const nextSequence = [...sequence];
-        for (let i = 0; i < addCount; i++) {
-          nextSequence.push(Math.floor(Math.random() * COLORS.length));
-        }
+        // Next level - generate a completely NEW sequence with one more color
+        const nextLength = sequence.length + 1;
+        const nextSequence = generateSequence(nextLength);
         setSequence(nextSequence);
         const nextLevel = level + 1;
         setLevel(nextLevel);

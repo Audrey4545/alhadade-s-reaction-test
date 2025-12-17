@@ -20,6 +20,9 @@ const DontClick = () => {
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const nextRoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const roundRef = useRef(0);
+  const scoreRef = useRef(0);
+  const hasClickedRef = useRef(false);
   const { saveScore } = useLocalScore();
 
   const clearTimers = useCallback(() => {
@@ -34,8 +37,8 @@ const DontClick = () => {
   }, []);
 
   const showNextRound = useCallback(() => {
-    if (round >= ROUNDS) {
-      const finalScore = Math.round((score / ROUNDS) * 100);
+    if (roundRef.current >= ROUNDS) {
+      const finalScore = Math.round((scoreRef.current / ROUNDS) * 100);
       saveScore('dontclick', finalScore);
       setGameState('result');
       return;
@@ -45,37 +48,42 @@ const DontClick = () => {
     const shouldClick = Math.random() < 0.5;
     setInstruction(shouldClick ? 'click' : 'dontclick');
     setHasClicked(false);
+    hasClickedRef.current = false;
     setFeedback(null);
     setGameState('playing');
 
     timeoutRef.current = setTimeout(() => {
       // Time's up - evaluate based on current instruction
-      if (!hasClicked) {
+      if (!hasClickedRef.current) {
         if (shouldClick) {
           // Should have clicked but didn't
           setFeedback('wrong');
         } else {
           // Correctly didn't click
-          setScore(s => s + 1);
+          scoreRef.current += 1;
+          setScore(scoreRef.current);
           setFeedback('correct');
         }
       }
       setGameState('feedback');
       nextRoundTimeoutRef.current = setTimeout(() => {
-        setRound(r => r + 1);
+        roundRef.current += 1;
+        setRound(roundRef.current);
         showNextRound();
       }, 500);
     }, DISPLAY_TIME);
-  }, [round, score, hasClicked, saveScore]);
+  }, [saveScore]);
 
   const handleTap = useCallback(() => {
-    if (gameState !== 'playing' || hasClicked) return;
+    if (gameState !== 'playing' || hasClickedRef.current) return;
     
     setHasClicked(true);
+    hasClickedRef.current = true;
     clearTimers();
 
     if (instruction === 'click') {
-      setScore(s => s + 1);
+      scoreRef.current += 1;
+      setScore(scoreRef.current);
       setFeedback('correct');
     } else {
       setFeedback('wrong');
@@ -83,12 +91,16 @@ const DontClick = () => {
 
     setGameState('feedback');
     nextRoundTimeoutRef.current = setTimeout(() => {
-      setRound(r => r + 1);
+      roundRef.current += 1;
+      setRound(roundRef.current);
       showNextRound();
     }, 500);
-  }, [gameState, hasClicked, instruction, clearTimers, showNextRound]);
+  }, [gameState, instruction, clearTimers, showNextRound]);
 
   const startGame = useCallback(() => {
+    roundRef.current = 0;
+    scoreRef.current = 0;
+    hasClickedRef.current = false;
     setRound(0);
     setScore(0);
     setFeedback(null);
@@ -98,6 +110,8 @@ const DontClick = () => {
   const resetGame = useCallback(() => {
     clearTimers();
     setGameState('intro');
+    roundRef.current = 0;
+    scoreRef.current = 0;
     setRound(0);
     setScore(0);
     setFeedback(null);

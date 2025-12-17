@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 type GameState = 'intro' | 'playing' | 'feedback' | 'result';
 
-const TRAP_WORDS = ['ALHADAD', 'ALHADABE', 'ALHADADA', 'ALHADADÉ', 'ALHADABE', 'ALADADE', 'ALHADAD3'];
+const TRAP_WORDS = ['ALHADAD', 'ALHADABE', 'ALHADADA', 'ALHADADÉ', 'ALHADABE', 'ALADADE', 'ALHADAD3', 'ALHADADY'];
 const DISTRACTION_WORDS = ['FLOW', 'STREET', 'BITUME', 'SKATE', 'DAMSO', 'TRAP', 'HOOD', 'BOSS', 'CASH', 'DRIP', 'VIDA LOCA', 'IPSÉITÉ', 'FARINIGHT'];
 const TARGET_WORD = 'ALHADADE';
 const ROUNDS = 15;

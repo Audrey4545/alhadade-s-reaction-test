@@ -19,18 +19,16 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/games" element={<GameSelect />} />
-          <Route path="/game/reflex" element={<ReflexTimer />} />
-          <Route path="/game/color" element={<ColorChange />} />
-          <Route path="/game/keyword" element={<KeywordGame />} />
-          <Route path="/game/dontclick" element={<DontClick />} />
-          <Route path="/game/sequence" element={<SequenceFlash />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/games" element={<GameSelect />} />
+        <Route path="/game/reflex" element={<ReflexTimer />} />
+        <Route path="/game/color" element={<ColorChange />} />
+        <Route path="/game/keyword" element={<KeywordGame />} />
+        <Route path="/game/dontclick" element={<DontClick />} />
+        <Route path="/game/sequence" element={<SequenceFlash />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </TooltipProvider>
   </QueryClientProvider>
 );
